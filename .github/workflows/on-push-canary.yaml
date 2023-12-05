@@ -1,0 +1,29 @@
+name: Canary Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy_canary:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v1
+      with:
+        kubeconfig: ./Terraform/.kube/config
+
+    - name: Deploy Canary
+      run: |
+       helm install stagingrelease ./Helm1.1/modifier-voting-app-chart
+  
+       
+    - name: Deploy to Production
+      run: |
+        # Deploy the remaining replicas to production
+        helm install prodrelease ./Helm/voting-app-chart
