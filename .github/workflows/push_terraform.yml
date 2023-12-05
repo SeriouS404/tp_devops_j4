@@ -1,0 +1,69 @@
+name: Terraform CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: Install Azure CLI
+        run: |
+          pip install azure-cli --upgrade
+
+      - name: Azure Login
+        run: |
+          az login --tenant ${{ secrets.AZURE_TENANT_ID }} -u ${{ secrets.AZURE_USERNAME }} -p ${{ secrets.AZURE_PASSWORD }}
+
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.0.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan 
+        run: terraform plan
+
+      - name: 'Install Infracost'
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
+
+      - name: 'Run Infracost'
+        run: |
+          infracost breakdown --path . --format json --out-file /tmp/infracost.json
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: 'Upload Infracost result'
+        run: |
+          infracost output --path /tmp/infracost.json --format github-comment > infracost-comment.md
+          cat infracost-comment.md
+
+      - name: verif_b4_apply
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.TOKEN }}
+          approvers: SeriouS404          # Mon utilisateur ?
+          minimum-approvals: 1
+          issue-title: "Une petite verif... !"
+          issue-body: "S'agirait de cliquer !"
+          exclude-workflow-initiator-as-approver: false
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
